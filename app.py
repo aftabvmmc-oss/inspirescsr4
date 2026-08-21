@@ -6,7 +6,7 @@ import datetime
 import plotly.express as px
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="CSR3 Community Surveillance Tracker", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="CSR4 Community Surveillance Tracker", layout="wide", initial_sidebar_state="expanded")
 
 # --- CONSTANTS ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1LwUtBMh_M58Y_SxWXfvwGvBWkAInY_rMGFLMpeRY9-M/edit?usp=sharing"
@@ -66,7 +66,7 @@ def get_data(sheet):
         return pd.DataFrame()
 
 # --- MAIN APP LAYOUT ---
-st.title("📊 CSR3 Community Surveillance Tracker")
+st.title("📊 CSR4 Community Surveillance Tracker")
 
 sheet = init_connection()
 tab1, tab2 = st.tabs(["📈 Live Summary & Analytics", "📝 Data Entry (Secure)"])
@@ -101,31 +101,6 @@ with tab1:
         kpi_col5.metric("⏳ Pending Annual Forms", annual_pending)
         kpi_col6.metric("🏥 ARI Hospitalizations", ari)
         
-        st.markdown("---")
-
-        st.subheader("🎯 Overall Coverage Progress")
-        
-        overall_df = pd.DataFrame({
-            'Metric': ['Structures', 'CSR4 Forms', 'Annual Survey Forms', 'Individuals'],
-            'Completed': [total_structures, total_forms, annual_submitted, total_individuals],
-            'Target': [TARGETS["OVERALL"]["Structures"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Individuals"]]
-        })
-        # Calculate % and cap at 100 for visual sanity
-        overall_df['% Completed'] = (overall_df['Completed'] / overall_df['Target'] * 100).round(1).clip(upper=100.0)
-        
-        fig_overall = px.bar(
-            overall_df, 
-            x='% Completed', 
-            y='Metric', 
-            orientation='h', 
-            text='% Completed',
-            color='Metric',
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig_overall.update_traces(texttemplate='%{text}%', textposition='outside')
-        fig_overall.update_layout(showlegend=False, xaxis_range=[0, 115], height=300, margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig_overall, use_container_width=True)
-            
         st.markdown("---")
 
         st.subheader("📊 Village-wise Progress")
@@ -209,6 +184,17 @@ with tab1:
             cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
             village_summary_display = village_summary[cols_to_show]
 
+            # Shorten column headers for better UI fit
+            rename_dict = {
+                'Structures Covered': 'Structs',
+                'Total Forms Submitted': 'CSR4 Forms',
+                'Total ANNUAL SURVEY Forms Submitted': 'Annual Forms',
+                'Total Pending ANNUAL SURVEY Forms': 'Pend. Annual',
+                'Individuals Covered': 'Individuals',
+                'ARI Hospitalizations': 'ARI Hosp'
+            }
+            village_summary_display = village_summary_display.rename(columns=rename_dict)
+
             st.dataframe(
                 village_summary_display, 
                 use_container_width=True,
@@ -221,6 +207,31 @@ with tab1:
                 }
             )
 
+        st.markdown("---")
+
+        st.subheader("🎯 Overall Coverage Progress")
+        
+        overall_df = pd.DataFrame({
+            'Metric': ['Structures', 'CSR4 Forms', 'Annual Survey Forms', 'Individuals'],
+            'Completed': [total_structures, total_forms, annual_submitted, total_individuals],
+            'Target': [TARGETS["OVERALL"]["Structures"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Individuals"]]
+        })
+        # Calculate % and cap at 100 for visual sanity
+        overall_df['% Completed'] = (overall_df['Completed'] / overall_df['Target'] * 100).round(1).clip(upper=100.0)
+        
+        fig_overall = px.bar(
+            overall_df, 
+            x='% Completed', 
+            y='Metric', 
+            orientation='h', 
+            text='% Completed',
+            color='Metric',
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
+        fig_overall.update_traces(texttemplate='%{text}%', textposition='outside')
+        fig_overall.update_layout(showlegend=False, xaxis_range=[0, 115], height=300, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_overall, use_container_width=True)
+            
         st.markdown("---")
         
         st.subheader("🧑‍💻 Data Collector Summary")
