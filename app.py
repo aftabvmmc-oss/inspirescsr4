@@ -306,33 +306,35 @@ with tab2:
         with st.form("data_entry_form", clear_on_submit=True):
             
             st.markdown("### 👤 Meta Data")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                entry_date = st.date_input("Date", datetime.date.today())
-            with col2:
-                data_collector = st.selectbox("Data Collector", DATA_COLLECTORS)
-            with col3:
-                village = st.selectbox("Village", VILLAGES)
+            entry_date = st.date_input("Date", datetime.date.today())
+            
+            # Use horizontal radio buttons to keep it readable but linear
+            data_collector = st.radio("Data Collector", DATA_COLLECTORS, horizontal=True)
+            village = st.radio("Village", VILLAGES, horizontal=True)
                 
             st.markdown("### 🏠 Coverage & Houses")
-            col4, col5, col6 = st.columns(3)
-            with col4:
+            
+            # From / To House numbers side by side in two columns
+            col_h1, col_h2 = st.columns(2)
+            with col_h1:
                 from_house = st.number_input("From House No.", min_value=0, step=1)
-                new_locked_houses = st.number_input("New Locked Houses", min_value=0, step=1)
-            with col5:
+            with col_h2:
                 to_house = st.number_input("To House No.", min_value=0, step=1)
-                migrated = st.number_input("Migrated", min_value=0, step=1)
-            with col6:
+                
+            # Locked Houses Covered and New Locked houses side by side
+            col_l1, col_l2 = st.columns(2)
+            with col_l1:
                 locked_houses_covered = st.number_input("Locked Houses Covered", min_value=0, step=1)
+            with col_l2:
+                new_locked_houses = st.number_input("New Locked Houses", min_value=0, step=1)
+                
+            migrated = st.number_input("Migrated", min_value=0, step=1)
                 
             st.markdown("### 👥 Individuals & Health Metrics")
-            col7, col8 = st.columns(2)
-            with col7:
-                total_forms_submitted = st.number_input("Total Forms Submitted", min_value=0, step=1)
-                individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
-                died = st.number_input("Died", min_value=0, step=1)
-            with col8:
-                ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1)
+            total_forms_submitted = st.number_input("Total Forms Submitted (CSR4)", min_value=0, step=1)
+            individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
+            died = st.number_input("Died", min_value=0, step=1)
+            ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1)
             
             st.markdown("---")
             st.subheader("📋 Annual Survey Status")
