@@ -259,14 +259,18 @@ with tab1:
 # ==========================================
 with tab2:
     st.header("Daily Data Entry Form")
-    password_input = st.text_input("Enter Admin Password to access data entry:", type="password")
+    password_input = st.text_input("Enter Password to access data entry:", type="password")
     
-    if password_input != "admin":
+    if password_input not in ["admin", "rakesh"]:
         if password_input:
             st.error("Incorrect Password.")
         st.info("Please enter the password to view the data entry form.")
     else:
-        st.success("Access Granted.")
+        if password_input == "admin":
+            st.success("Access Granted. Welcome, Dr. Aftab!")
+        elif password_input == "rakesh":
+            st.success("Access Granted. Welcome, Mr. Rakesh!")
+            
         st.markdown("---")
         
         st.subheader("📅 Recent Submissions Calendar")
