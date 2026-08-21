@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 import datetime
+import plotly.express as px
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="CSR3 Community Surveillance Tracker", layout="wide", initial_sidebar_state="expanded")
@@ -80,52 +81,138 @@ with tab1:
     if df.empty:
         st.warning("No data found in the linked Google Sheet or connection failed.")
     else:
-        st.subheader("Overview Metrics")
+        st.subheader("Key Performance Indicators")
         
         total_structures = int(df['Houses Covered'].sum()) if 'Houses Covered' in df.columns else 0
         total_forms = int(df['Total Forms Submitted'].sum()) if 'Total Forms Submitted' in df.columns else 0
         total_individuals = int(df['Individuals Covered'].sum()) if 'Individuals Covered' in df.columns else 0
-        
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total Structures Covered", total_structures)
-        col2.metric("Total CSR4 Forms Submitted", total_forms)
-        col3.metric("Total Individuals Covered", total_individuals)
-        col4.metric("Total ARI Hospitalizations", int(df['ARI Hospitalizations'].sum()) if 'ARI Hospitalizations' in df.columns else 0)
-
-        st.subheader("🎯 Overall Coverage Progress (vs Targets)")
-        prog_col1, prog_col2, prog_col3 = st.columns(3)
-        
-        with prog_col1:
-            struct_pct = min(total_structures / TARGETS["OVERALL"]["Structures"], 1.0)
-            st.markdown(f"**Structures:** {total_structures} / {TARGETS['OVERALL']['Structures']} ({struct_pct*100:.1f}%)")
-            st.progress(struct_pct)
-            
-        with prog_col2:
-            forms_pct = min(total_forms / TARGETS["OVERALL"]["Forms"], 1.0)
-            st.markdown(f"**Forms:** {total_forms} / {TARGETS['OVERALL']['Forms']} ({forms_pct*100:.1f}%)")
-            st.progress(forms_pct)
-            
-        with prog_col3:
-            ind_pct = min(total_individuals / TARGETS["OVERALL"]["Individuals"], 1.0)
-            st.markdown(f"**Individuals:** {total_individuals} / {TARGETS['OVERALL']['Individuals']} ({ind_pct*100:.1f}%)")
-            st.progress(ind_pct)
-            
-        st.markdown("---")
-
-        st.subheader("Annual Survey Progress")
-        as_col1, as_col2 = st.columns(2)
+        ari = int(df['ARI Hospitalizations'].sum()) if 'ARI Hospitalizations' in df.columns else 0
         annual_submitted = int(df['Total ANNUAL SURVEY Forms Submitted'].sum()) if 'Total ANNUAL SURVEY Forms Submitted' in df.columns else 0
         annual_pending = int(df['Total Pending ANNUAL SURVEY Forms'].sum()) if 'Total Pending ANNUAL SURVEY Forms' in df.columns else 0
-        as_col1.metric("Total ANNUAL SURVEY Forms Submitted", annual_submitted)
-        as_col2.metric("Total Pending ANNUAL SURVEY Forms", annual_pending)
+        
+        # Split metrics into two vibrant rows
+        kpi_col1, kpi_col2, kpi_col3 = st.columns(3)
+        kpi_col1.metric("🏠 Structures Covered", total_structures)
+        kpi_col2.metric("📝 CSR4 Forms Submitted", total_forms)
+        kpi_col3.metric("👥 Individuals Covered", total_individuals)
+        
+        kpi_col4, kpi_col5, kpi_col6 = st.columns(3)
+        kpi_col4.metric("📋 Annual Survey Forms", annual_submitted)
+        kpi_col5.metric("⏳ Pending Annual Forms", annual_pending)
+        kpi_col6.metric("🏥 ARI Hospitalizations", ari)
+        
+        st.markdown("---")
+
+        st.subheader("🎯 Overall Coverage Progress")
+        
+        overall_df = pd.DataFrame({
+            'Metric': ['Structures', 'CSR4 Forms', 'Annual Survey Forms', 'Individuals'],
+            'Completed': [total_structures, total_forms, annual_submitted, total_individuals],
+            'Target': [TARGETS["OVERALL"]["Structures"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Forms"], TARGETS["OVERALL"]["Individuals"]]
+        })
+        # Calculate % and cap at 100 for visual sanity
+        overall_df['% Completed'] = (overall_df['Completed'] / overall_df['Target'] * 100).round(1).clip(upper=100.0)
+        
+        fig_overall = px.bar(
+            overall_df, 
+            x='% Completed', 
+            y='Metric', 
+            orientation='h', 
+            text='% Completed',
+            color='Metric',
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
+        fig_overall.update_traces(texttemplate='%{text}%', textposition='outside')
+        fig_overall.update_layout(showlegend=False, xaxis_range=[0, 115], height=300, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_overall, use_container_width=True)
+            
+        st.markdown("---")
+
+        st.subheader("📊 Village-wise Progress")
+        if 'Village' in df.columns:
+            village_summary = df.groupby('Village').agg({
+                'Houses Covered': 'sum',
+                'Total Forms Submitted': 'sum',
+                'Total ANNUAL SURVEY Forms Submitted': 'sum',
+                'Total Pending ANNUAL SURVEY Forms': 'sum',
+                'New Locked Houses': 'sum',
+                'Migrated': 'sum',
+                'Individuals Covered': 'sum',
+                'Died': 'sum',
+                'ARI Hospitalizations': 'sum',
+                'Date': 'nunique' 
+            }).rename(columns={'Date': 'Person Days', 'New Locked Houses': 'Locked', 'Houses Covered': 'Structures Covered'}).reset_index()
+            
+            # Calculate targets and progress % 
+            village_summary['Target Struct.'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Structures', 1))
+            village_summary['Struct. Prog. (%)'] = (village_summary['Structures Covered'] / village_summary['Target Struct.'] * 100).round(1).clip(upper=100.0)
+
+            village_summary['Target Forms'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Forms', 1))
+            village_summary['Form Prog. (%)'] = (village_summary['Total Forms Submitted'] / village_summary['Target Forms'] * 100).round(1).clip(upper=100.0)
+            
+            # Use Target Forms as the denominator for Annual Survey
+            village_summary['Annual Prog. (%)'] = (village_summary['Total ANNUAL SURVEY Forms Submitted'] / village_summary['Target Forms'] * 100).round(1).clip(upper=100.0)
+
+            village_summary['Target Indiv.'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Individuals', 1))
+            village_summary['Indiv. Prog. (%)'] = (village_summary['Individuals Covered'] / village_summary['Target Indiv.'] * 100).round(1).clip(upper=100.0)
+
+            chart_cols = ['Village', 'Struct. Prog. (%)', 'Form Prog. (%)', 'Annual Prog. (%)', 'Indiv. Prog. (%)']
+            chart_df = village_summary[chart_cols].melt(id_vars='Village', var_name='Metric', value_name='Completion (%)')
+            
+            metric_labels = {
+                'Struct. Prog. (%)': 'Structures',
+                'Form Prog. (%)': 'CSR4 Forms',
+                'Annual Prog. (%)': 'Annual Forms',
+                'Indiv. Prog. (%)': 'Individuals'
+            }
+            chart_df['Metric'] = chart_df['Metric'].map(metric_labels)
+
+            fig_village = px.bar(
+                chart_df, 
+                x='Village', 
+                y='Completion (%)', 
+                color='Metric', 
+                barmode='group',
+                text_auto='.1f',
+                color_discrete_sequence=px.colors.qualitative.Set2
+            )
+            fig_village.update_traces(textposition='outside')
+            fig_village.update_layout(yaxis_range=[0, 115], height=450, hovermode="x unified", margin=dict(t=20))
+            st.plotly_chart(fig_village, use_container_width=True)
+
+            with st.expander("🔎 View Detailed Village Data Table"):
+                cols_to_show = [
+                    'Village', 
+                    'Structures Covered', 'Struct. Prog. (%)', 
+                    'Total Forms Submitted', 'Form Prog. (%)',
+                    'Total ANNUAL SURVEY Forms Submitted', 'Annual Prog. (%)',
+                    'Individuals Covered', 'Indiv. Prog. (%)',
+                    'Total Pending ANNUAL SURVEY Forms',
+                    'Locked', 'Migrated', 'Died', 'ARI Hospitalizations', 'Person Days'
+                ]
+                cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
+                village_summary_display = village_summary[cols_to_show]
+
+                st.dataframe(
+                    village_summary_display, 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Struct. Prog. (%)": st.column_config.ProgressColumn("Struct %", format="%f%%", min_value=0, max_value=100),
+                        "Form Prog. (%)": st.column_config.ProgressColumn("Form %", format="%f%%", min_value=0, max_value=100),
+                        "Annual Prog. (%)": st.column_config.ProgressColumn("Annual %", format="%f%%", min_value=0, max_value=100),
+                        "Indiv. Prog. (%)": st.column_config.ProgressColumn("Indiv %", format="%f%%", min_value=0, max_value=100)
+                    }
+                )
 
         st.markdown("---")
         
-        st.subheader("Data Collector Summary")
+        st.subheader("🧑‍💻 Data Collector Summary")
         if 'Data Collector' in df.columns:
             collector_summary = df.groupby('Data Collector').agg({
                 'Houses Covered': 'sum',
                 'Total Forms Submitted': 'sum',
+                'Total ANNUAL SURVEY Forms Submitted': 'sum',
                 'Migrated': 'sum',
                 'Individuals Covered': 'sum',
                 'Died': 'sum',
@@ -135,70 +222,6 @@ with tab1:
             
             collector_summary['Houses / Day'] = (collector_summary['Houses Covered'] / collector_summary['Working Days']).round(2).fillna(0)
             st.dataframe(collector_summary, use_container_width=True, hide_index=True)
-            
-        st.subheader("Village-wise Summary & Progress")
-        if 'Village' in df.columns:
-            village_summary = df.groupby('Village').agg({
-                'Houses Covered': 'sum',
-                'Total Forms Submitted': 'sum',
-                'New Locked Houses': 'sum',
-                'Migrated': 'sum',
-                'Individuals Covered': 'sum',
-                'Died': 'sum',
-                'ARI Hospitalizations': 'sum',
-                'Date': 'nunique' 
-            }).rename(columns={'Date': 'Person Days', 'New Locked Houses': 'Locked', 'Houses Covered': 'Structures Covered'}).reset_index()
-            
-            # Calculate targets and progress % for the dataframe
-            village_summary['Target Structures'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Structures', 1))
-            village_summary['Struct. Prog. (%)'] = (village_summary['Structures Covered'] / village_summary['Target Structures'] * 100).round(1).clip(upper=100.0)
-
-            village_summary['Target Forms'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Forms', 1))
-            village_summary['Form Prog. (%)'] = (village_summary['Total Forms Submitted'] / village_summary['Target Forms'] * 100).round(1).clip(upper=100.0)
-
-            village_summary['Target Indiv.'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Individuals', 1))
-            village_summary['Indiv. Prog. (%)'] = (village_summary['Individuals Covered'] / village_summary['Target Indiv.'] * 100).round(1).clip(upper=100.0)
-
-            # Reorder columns cleanly
-            cols_to_show = [
-                'Village', 
-                'Structures Covered', 'Target Structures', 'Struct. Prog. (%)', 
-                'Total Forms Submitted', 'Target Forms', 'Form Prog. (%)',
-                'Individuals Covered', 'Target Indiv.', 'Indiv. Prog. (%)',
-                'Locked', 'Migrated', 'Died', 'ARI Hospitalizations', 'Person Days'
-            ]
-            cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
-            village_summary = village_summary[cols_to_show]
-
-            # Display dataframe with configured column progress bars
-            st.dataframe(
-                village_summary, 
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Struct. Prog. (%)": st.column_config.ProgressColumn(
-                        "Structure %",
-                        help="Percentage of target structures covered",
-                        format="%f%%",
-                        min_value=0,
-                        max_value=100,
-                    ),
-                    "Form Prog. (%)": st.column_config.ProgressColumn(
-                        "Form %",
-                        help="Percentage of target forms submitted",
-                        format="%f%%",
-                        min_value=0,
-                        max_value=100,
-                    ),
-                    "Indiv. Prog. (%)": st.column_config.ProgressColumn(
-                        "Individual %",
-                        help="Percentage of target individuals covered",
-                        format="%f%%",
-                        min_value=0,
-                        max_value=100,
-                    )
-                }
-            )
 
 # ==========================================
 # TAB 2: DATA ENTRY (LINEAR REWORK)
