@@ -12,6 +12,17 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1LwUtBMh_M58Y_SxWXfvwGvBWkAI
 DATA_COLLECTORS = ["Deendayal", "Sachin", "Pradeep", "Rajkumar"] 
 VILLAGES = ["Sunped", "Sagarpur", "Prahladpur", "Deegh", "Pyala", "Khandawali"] 
 
+# TARGET DENOMINATORS
+TARGETS = {
+    "Sunped": {"Structures": 446, "Forms": 746, "Individuals": 1751},
+    "Sagarpur": {"Structures": 479, "Forms": 848, "Individuals": 1975},
+    "Prahladpur": {"Structures": 413, "Forms": 754, "Individuals": 1704},
+    "Deegh": {"Structures": 637, "Forms": 1179, "Individuals": 2664},
+    "Pyala": {"Structures": 747, "Forms": 1382, "Individuals": 3200},
+    "Khandawali": {"Structures": 568, "Forms": 1250, "Individuals": 3104},
+    "OVERALL": {"Structures": 3290, "Forms": 6159, "Individuals": 14398}
+}
+
 # --- GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
 def init_connection():
@@ -70,11 +81,36 @@ with tab1:
         st.warning("No data found in the linked Google Sheet or connection failed.")
     else:
         st.subheader("Overview Metrics")
+        
+        total_structures = int(df['Houses Covered'].sum()) if 'Houses Covered' in df.columns else 0
+        total_forms = int(df['Total Forms Submitted'].sum()) if 'Total Forms Submitted' in df.columns else 0
+        total_individuals = int(df['Individuals Covered'].sum()) if 'Individuals Covered' in df.columns else 0
+        
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total Structures Covered", int(df['Houses Covered'].sum()) if 'Houses Covered' in df.columns else 0)
-        col2.metric("Total CSR4 Forms Submitted", int(df['Total Forms Submitted'].sum()) if 'Total Forms Submitted' in df.columns else 0)
-        col3.metric("Total Individuals Covered", int(df['Individuals Covered'].sum()) if 'Individuals Covered' in df.columns else 0)
+        col1.metric("Total Structures Covered", total_structures)
+        col2.metric("Total CSR4 Forms Submitted", total_forms)
+        col3.metric("Total Individuals Covered", total_individuals)
         col4.metric("Total ARI Hospitalizations", int(df['ARI Hospitalizations'].sum()) if 'ARI Hospitalizations' in df.columns else 0)
+
+        st.subheader("🎯 Overall Coverage Progress (vs Targets)")
+        prog_col1, prog_col2, prog_col3 = st.columns(3)
+        
+        with prog_col1:
+            struct_pct = min(total_structures / TARGETS["OVERALL"]["Structures"], 1.0)
+            st.markdown(f"**Structures:** {total_structures} / {TARGETS['OVERALL']['Structures']} ({struct_pct*100:.1f}%)")
+            st.progress(struct_pct)
+            
+        with prog_col2:
+            forms_pct = min(total_forms / TARGETS["OVERALL"]["Forms"], 1.0)
+            st.markdown(f"**Forms:** {total_forms} / {TARGETS['OVERALL']['Forms']} ({forms_pct*100:.1f}%)")
+            st.progress(forms_pct)
+            
+        with prog_col3:
+            ind_pct = min(total_individuals / TARGETS["OVERALL"]["Individuals"], 1.0)
+            st.markdown(f"**Individuals:** {total_individuals} / {TARGETS['OVERALL']['Individuals']} ({ind_pct*100:.1f}%)")
+            st.progress(ind_pct)
+            
+        st.markdown("---")
 
         st.subheader("Annual Survey Progress")
         as_col1, as_col2 = st.columns(2)
@@ -98,9 +134,9 @@ with tab1:
             }).rename(columns={'Date': 'Working Days'}).reset_index()
             
             collector_summary['Houses / Day'] = (collector_summary['Houses Covered'] / collector_summary['Working Days']).round(2).fillna(0)
-            st.dataframe(collector_summary, use_container_width=True)
+            st.dataframe(collector_summary, use_container_width=True, hide_index=True)
             
-        st.subheader("Village-wise Summary")
+        st.subheader("Village-wise Summary & Progress")
         if 'Village' in df.columns:
             village_summary = df.groupby('Village').agg({
                 'Houses Covered': 'sum',
@@ -112,7 +148,57 @@ with tab1:
                 'ARI Hospitalizations': 'sum',
                 'Date': 'nunique' 
             }).rename(columns={'Date': 'Person Days', 'New Locked Houses': 'Locked', 'Houses Covered': 'Structures Covered'}).reset_index()
-            st.dataframe(village_summary, use_container_width=True)
+            
+            # Calculate targets and progress % for the dataframe
+            village_summary['Target Structures'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Structures', 1))
+            village_summary['Struct. Prog. (%)'] = (village_summary['Structures Covered'] / village_summary['Target Structures'] * 100).round(1).clip(upper=100.0)
+
+            village_summary['Target Forms'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Forms', 1))
+            village_summary['Form Prog. (%)'] = (village_summary['Total Forms Submitted'] / village_summary['Target Forms'] * 100).round(1).clip(upper=100.0)
+
+            village_summary['Target Indiv.'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Individuals', 1))
+            village_summary['Indiv. Prog. (%)'] = (village_summary['Individuals Covered'] / village_summary['Target Indiv.'] * 100).round(1).clip(upper=100.0)
+
+            # Reorder columns cleanly
+            cols_to_show = [
+                'Village', 
+                'Structures Covered', 'Target Structures', 'Struct. Prog. (%)', 
+                'Total Forms Submitted', 'Target Forms', 'Form Prog. (%)',
+                'Individuals Covered', 'Target Indiv.', 'Indiv. Prog. (%)',
+                'Locked', 'Migrated', 'Died', 'ARI Hospitalizations', 'Person Days'
+            ]
+            cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
+            village_summary = village_summary[cols_to_show]
+
+            # Display dataframe with configured column progress bars
+            st.dataframe(
+                village_summary, 
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Struct. Prog. (%)": st.column_config.ProgressColumn(
+                        "Structure %",
+                        help="Percentage of target structures covered",
+                        format="%f%%",
+                        min_value=0,
+                        max_value=100,
+                    ),
+                    "Form Prog. (%)": st.column_config.ProgressColumn(
+                        "Form %",
+                        help="Percentage of target forms submitted",
+                        format="%f%%",
+                        min_value=0,
+                        max_value=100,
+                    ),
+                    "Indiv. Prog. (%)": st.column_config.ProgressColumn(
+                        "Individual %",
+                        help="Percentage of target individuals covered",
+                        format="%f%%",
+                        min_value=0,
+                        max_value=100,
+                    )
+                }
+            )
 
 # ==========================================
 # TAB 2: DATA ENTRY (LINEAR REWORK)
