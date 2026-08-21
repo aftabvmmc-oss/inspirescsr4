@@ -85,6 +85,10 @@ with tab1:
         st.warning("No data found in the linked Google Sheet or connection failed.")
     else:
         st.subheader("Overview Metrics")
+        
+        total_structures = int(df['Houses Covered'].sum()) if 'Houses Covered' in df.columns else 0
+        total_forms = int(df['Total Forms Submitted'].sum()) if 'Total Forms Submitted' in df.columns else 0
+        
         total_individuals = int(df['Individuals Covered'].sum()) if 'Individuals Covered' in df.columns else 0
         ari = int(df['ARI Hospitalizations'].sum()) if 'ARI Hospitalizations' in df.columns else 0
         annual_submitted = int(df['Total ANNUAL SURVEY Forms Submitted'].sum()) if 'Total ANNUAL SURVEY Forms Submitted' in df.columns else 0
@@ -301,7 +305,35 @@ with tab2:
         
         with st.form("data_entry_form", clear_on_submit=True):
             
-            # SECTION 1: Meta Data
+            st.markdown("### 👤 Meta Data")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                entry_date = st.date_input("Date", datetime.date.today())
+            with col2:
+                data_collector = st.selectbox("Data Collector", DATA_COLLECTORS)
+            with col3:
+                village = st.selectbox("Village", VILLAGES)
+                
+            st.markdown("### 🏠 Coverage & Houses")
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                from_house = st.number_input("From House No.", min_value=0, step=1)
+                new_locked_houses = st.number_input("New Locked Houses", min_value=0, step=1)
+            with col5:
+                to_house = st.number_input("To House No.", min_value=0, step=1)
+                migrated = st.number_input("Migrated", min_value=0, step=1)
+            with col6:
+                locked_houses_covered = st.number_input("Locked Houses Covered", min_value=0, step=1)
+                
+            st.markdown("### 👥 Individuals & Health Metrics")
+            col7, col8 = st.columns(2)
+            with col7:
+                total_forms_submitted = st.number_input("Total Forms Submitted", min_value=0, step=1)
+                individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
+                died = st.number_input("Died", min_value=0, step=1)
+            with col8:
+                ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1)
+            
             st.markdown("---")
             st.subheader("📋 Annual Survey Status")
             annual_forms_submitted = st.number_input("Total ANNUAL SURVEY Forms Submitted", min_value=0, step=1)
