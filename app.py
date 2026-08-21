@@ -156,54 +156,70 @@ with tab1:
             village_summary['Target Indiv.'] = village_summary['Village'].apply(lambda x: TARGETS.get(x, {}).get('Individuals', 1))
             village_summary['Indiv. Prog. (%)'] = (village_summary['Individuals Covered'] / village_summary['Target Indiv.'] * 100).round(1).clip(upper=100.0)
 
-            chart_cols = ['Village', 'Struct. Prog. (%)', 'Form Prog. (%)', 'Annual Prog. (%)', 'Indiv. Prog. (%)']
-            chart_df = village_summary[chart_cols].melt(id_vars='Village', var_name='Metric', value_name='Completion (%)')
+            st.markdown("### 📈 Village-wise Progress Breakdown")
             
-            metric_labels = {
-                'Struct. Prog. (%)': 'Structures',
-                'Form Prog. (%)': 'CSR4 Forms',
-                'Annual Prog. (%)': 'Annual Forms',
-                'Indiv. Prog. (%)': 'Individuals'
-            }
-            chart_df['Metric'] = chart_df['Metric'].map(metric_labels)
+            v_col1, v_col2 = st.columns(2)
+            
+            with v_col1:
+                st.markdown("**🏠 Structures Covered**")
+                st.caption("Percentage of estimated structures covered.")
+                fig_struct = px.bar(village_summary, x='Village', y='Struct. Prog. (%)', text_auto='.1f', color_discrete_sequence=['#4C78A8'])
+                fig_struct.update_traces(textposition='outside')
+                fig_struct.update_layout(yaxis_range=[0, 115], height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title=None, yaxis_title="%")
+                st.plotly_chart(fig_struct, use_container_width=True)
+                
+            with v_col2:
+                st.markdown("**📝 CSR4 Forms Submitted**")
+                st.caption("Percentage of target CSR4 forms completed.")
+                fig_form = px.bar(village_summary, x='Village', y='Form Prog. (%)', text_auto='.1f', color_discrete_sequence=['#F58518'])
+                fig_form.update_traces(textposition='outside')
+                fig_form.update_layout(yaxis_range=[0, 115], height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title=None, yaxis_title="%")
+                st.plotly_chart(fig_form, use_container_width=True)
+                
+            v_col3, v_col4 = st.columns(2)
+            
+            with v_col3:
+                st.markdown("**📋 Annual Survey Forms**")
+                st.caption("Percentage of target Annual Surveys completed.")
+                fig_annual = px.bar(village_summary, x='Village', y='Annual Prog. (%)', text_auto='.1f', color_discrete_sequence=['#54A24B'])
+                fig_annual.update_traces(textposition='outside')
+                fig_annual.update_layout(yaxis_range=[0, 115], height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title=None, yaxis_title="%")
+                st.plotly_chart(fig_annual, use_container_width=True)
+                
+            with v_col4:
+                st.markdown("**👥 Individuals Covered**")
+                st.caption("Percentage of target individuals covered.")
+                fig_indiv = px.bar(village_summary, x='Village', y='Indiv. Prog. (%)', text_auto='.1f', color_discrete_sequence=['#E45756'])
+                fig_indiv.update_traces(textposition='outside')
+                fig_indiv.update_layout(yaxis_range=[0, 115], height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title=None, yaxis_title="%")
+                st.plotly_chart(fig_indiv, use_container_width=True)
 
-            fig_village = px.bar(
-                chart_df, 
-                x='Village', 
-                y='Completion (%)', 
-                color='Metric', 
-                barmode='group',
-                text_auto='.1f',
-                color_discrete_sequence=px.colors.qualitative.Set2
+            st.markdown("---")
+            st.subheader("🔎 Detailed Village Data Table")
+            
+            cols_to_show = [
+                'Village', 
+                'Structures Covered', 'Struct. Prog. (%)', 
+                'Total Forms Submitted', 'Form Prog. (%)',
+                'Total ANNUAL SURVEY Forms Submitted', 'Annual Prog. (%)',
+                'Individuals Covered', 'Indiv. Prog. (%)',
+                'Total Pending ANNUAL SURVEY Forms',
+                'Locked', 'Migrated', 'Died', 'ARI Hospitalizations', 'Person Days'
+            ]
+            cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
+            village_summary_display = village_summary[cols_to_show]
+
+            st.dataframe(
+                village_summary_display, 
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Struct. Prog. (%)": st.column_config.ProgressColumn("Struct %", format="%f%%", min_value=0, max_value=100),
+                    "Form Prog. (%)": st.column_config.ProgressColumn("Form %", format="%f%%", min_value=0, max_value=100),
+                    "Annual Prog. (%)": st.column_config.ProgressColumn("Annual %", format="%f%%", min_value=0, max_value=100),
+                    "Indiv. Prog. (%)": st.column_config.ProgressColumn("Indiv %", format="%f%%", min_value=0, max_value=100)
+                }
             )
-            fig_village.update_traces(textposition='outside')
-            fig_village.update_layout(yaxis_range=[0, 115], height=450, hovermode="x unified", margin=dict(t=20))
-            st.plotly_chart(fig_village, use_container_width=True)
-
-            with st.expander("🔎 View Detailed Village Data Table"):
-                cols_to_show = [
-                    'Village', 
-                    'Structures Covered', 'Struct. Prog. (%)', 
-                    'Total Forms Submitted', 'Form Prog. (%)',
-                    'Total ANNUAL SURVEY Forms Submitted', 'Annual Prog. (%)',
-                    'Individuals Covered', 'Indiv. Prog. (%)',
-                    'Total Pending ANNUAL SURVEY Forms',
-                    'Locked', 'Migrated', 'Died', 'ARI Hospitalizations', 'Person Days'
-                ]
-                cols_to_show = [c for c in cols_to_show if c in village_summary.columns]
-                village_summary_display = village_summary[cols_to_show]
-
-                st.dataframe(
-                    village_summary_display, 
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Struct. Prog. (%)": st.column_config.ProgressColumn("Struct %", format="%f%%", min_value=0, max_value=100),
-                        "Form Prog. (%)": st.column_config.ProgressColumn("Form %", format="%f%%", min_value=0, max_value=100),
-                        "Annual Prog. (%)": st.column_config.ProgressColumn("Annual %", format="%f%%", min_value=0, max_value=100),
-                        "Indiv. Prog. (%)": st.column_config.ProgressColumn("Indiv %", format="%f%%", min_value=0, max_value=100)
-                    }
-                )
 
         st.markdown("---")
         
