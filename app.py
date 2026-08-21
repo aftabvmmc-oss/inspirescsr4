@@ -5,8 +5,6 @@ from google.oauth2.service_account import Credentials
 import datetime
 
 # --- CONFIGURATION ---
-# Note: The custom CSS block has been removed. 
-# Light mode is now handled by .streamlit/config.toml
 st.set_page_config(page_title="CSR3 Community Surveillance Tracker", layout="wide", initial_sidebar_state="expanded")
 
 # --- CONSTANTS ---
@@ -117,7 +115,7 @@ with tab1:
             st.dataframe(village_summary, use_container_width=True)
 
 # ==========================================
-# TAB 2: DATA ENTRY (REWORKED)
+# TAB 2: DATA ENTRY (LINEAR REWORK)
 # ==========================================
 with tab2:
     st.header("Daily Data Entry Form")
@@ -131,63 +129,51 @@ with tab2:
         st.success("Access Granted.")
         st.markdown("---")
         
-        with st.form("data_entry_form"):
+        # clear_on_submit=True resets the form automatically after submission
+        with st.form("data_entry_form", clear_on_submit=True):
             
-            # SECTION 1: Meta Data
             st.subheader("📍 General Information")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                entry_date = st.date_input("Date of Survey", datetime.date.today())
-            with col2:
-                data_collector = st.selectbox("Data Collector", DATA_COLLECTORS)
-            with col3:
-                village = st.selectbox("Village", VILLAGES)
+            entry_date = st.date_input("Date of Survey", datetime.date.today())
+            
+            # Radio buttons instead of dropdowns (horizontal for better spacing)
+            data_collector = st.radio("Data Collector", DATA_COLLECTORS, horizontal=True)
+            village = st.radio("Village", VILLAGES, horizontal=True)
                 
             st.markdown("---")
-            
-            # SECTION 2: Logistics & Coverage
             st.subheader("🏠 Logistical Coverage (CSR4)")
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                from_house = st.number_input("From House No.", min_value=0, step=1, help="Starting house number")
-            with col_b:
-                to_house = st.number_input("To House No.", min_value=0, step=1, help="Ending house number")
-            with col_c:
-                locked_houses_covered = st.number_input("Locked Houses Covered", min_value=0, step=1, help="Old locked houses covered today")
             
-            col_d, col_e = st.columns(2)
+            # House numbers in two columns
+            col_a, col_b = st.columns(2)
+            with col_a:
+                from_house = st.number_input("From House No.", min_value=0, step=1)
+            with col_b:
+                to_house = st.number_input("To House No.", min_value=0, step=1)
+            
+            # Locked houses in two columns
+            col_c, col_d = st.columns(2)
+            with col_c:
+                locked_houses_covered = st.number_input("Locked Houses Covered", min_value=0, step=1)
             with col_d:
                 new_locked_houses = st.number_input("New Locked Houses", min_value=0, step=1)
-            with col_e:
-                migrated = st.number_input("Migrated Families", min_value=0, step=1)
+                
+            # Remaining fields are linear (single column)
+            migrated = st.number_input("Migrated Families", min_value=0, step=1)
                 
             st.markdown("---")
-            
-            # SECTION 3: Epidemiology & Demographics
             st.subheader("⚕️ Health & Demographics (CSR4)")
-            col_f, col_g, col_h, col_i = st.columns(4)
-            with col_f:
-                 total_forms_submitted = st.number_input("Total Forms Submitted", min_value=0, step=1)
-            with col_g:
-                individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
-            with col_h:
-                 ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1, help="Acute Respiratory Infection hospitalizations")
-            with col_i:
-                died = st.number_input("Deaths (Died)", min_value=0, step=1)
+            total_forms_submitted = st.number_input("Total Forms Submitted", min_value=0, step=1)
+            individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
+            ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1)
+            died = st.number_input("Deaths (Died)", min_value=0, step=1)
 
             st.markdown("---")
-            
-            # SECTION 4: Annual Survey
             st.subheader("📋 Annual Survey Status")
-            st.info("Metrics for the Annual Survey (Separate from daily CSR4 forms).")
-            col_as1, col_as2 = st.columns(2)
-            with col_as1:
-                annual_forms_submitted = st.number_input("Total ANNUAL SURVEY Forms Submitted", min_value=0, step=1)
-            with col_as2:
-                annual_forms_pending = st.number_input("Total Pending ANNUAL SURVEY Forms", min_value=0, step=1)
+            annual_forms_submitted = st.number_input("Total ANNUAL SURVEY Forms Submitted", min_value=0, step=1)
+            annual_forms_pending = st.number_input("Total Pending ANNUAL SURVEY Forms", min_value=0, step=1)
                 
             submit_button = st.form_submit_button("Submit Daily Data", type="primary")
             
+            # Processing on submit
             if submit_button:
                 if to_house >= from_house:
                      calculated_houses_covered = (to_house - from_house + 1) + locked_houses_covered
@@ -203,7 +189,7 @@ with tab2:
                 
                 try:
                     sheet.append_row(new_row)
-                    st.success("✅ Data submitted successfully! The summary tab has been updated.")
+                    st.success("✅ Data submitted successfully! The form has been cleared for your next entry.")
                     st.balloons()
                 except Exception as e:
                     st.error(f"❌ Failed to submit data: {e}")
