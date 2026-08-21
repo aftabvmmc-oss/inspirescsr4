@@ -69,6 +69,10 @@ def get_data(sheet):
 st.title("📊 CSR4 Community Surveillance Tracker")
 
 sheet = init_connection()
+
+# Fetch data once here so both tabs can access it without duplicate API calls
+df = get_data(sheet)
+
 tab1, tab2 = st.tabs(["📈 Live Summary & Analytics", "📝 Data Entry (Secure)"])
 
 # ==========================================
@@ -76,15 +80,11 @@ tab1, tab2 = st.tabs(["📈 Live Summary & Analytics", "📝 Data Entry (Secure)
 # ==========================================
 with tab1:
     st.header("Real-Time Analytics Dashboard")
-    df = get_data(sheet)
     
     if df.empty:
         st.warning("No data found in the linked Google Sheet or connection failed.")
     else:
-        st.subheader("Key Performance Indicators")
-        
-        total_structures = int(df['Houses Covered'].sum()) if 'Houses Covered' in df.columns else 0
-        total_forms = int(df['Total Forms Submitted'].sum()) if 'Total Forms Submitted' in df.columns else 0
+        st.subheader("Overview Metrics")
         total_individuals = int(df['Individuals Covered'].sum()) if 'Individuals Covered' in df.columns else 0
         ari = int(df['ARI Hospitalizations'].sum()) if 'ARI Hospitalizations' in df.columns else 0
         annual_submitted = int(df['Total ANNUAL SURVEY Forms Submitted'].sum()) if 'Total ANNUAL SURVEY Forms Submitted' in df.columns else 0
@@ -265,43 +265,43 @@ with tab2:
         st.success("Access Granted.")
         st.markdown("---")
         
-        # clear_on_submit=True resets the form automatically after submission
+        st.subheader("📅 Recent Submissions Calendar")
+        st.caption("Check this grid before entering data to avoid duplicates. Shows the villages covered by each collector over the last 10 days.")
+        
+        if not df.empty and 'Date' in df.columns and 'Data Collector' in df.columns:
+            try:
+                recent_df = df.copy()
+                recent_df['Date'] = pd.to_datetime(recent_df['Date'], errors='coerce').dt.date
+                recent_df = recent_df.dropna(subset=['Date'])
+                
+                # Create pivot table (Dates as rows, Collectors as columns)
+                pivot_df = recent_df.pivot_table(
+                    index='Date', 
+                    columns='Data Collector', 
+                    values='Village', 
+                    aggfunc=lambda x: '✅ ' + ', '.join(set(x.astype(str)))
+                )
+                
+                # Ensure all defined collectors appear as columns even if they have no entries
+                for col in DATA_COLLECTORS:
+                    if col not in pivot_df.columns:
+                        pivot_df[col] = '❌ Missing'
+                        
+                # Fill blank cells with missing emoji and sort by newest dates
+                pivot_df = pivot_df.fillna('❌ Missing').sort_index(ascending=False).head(10)
+                pivot_df.index = pivot_df.index.astype(str)
+                
+                st.dataframe(pivot_df, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Could not load calendar view: {e}")
+        else:
+            st.info("No historical data available to show.")
+            
+        st.markdown("---")
+        
         with st.form("data_entry_form", clear_on_submit=True):
             
-            st.subheader("📍 General Information")
-            entry_date = st.date_input("Date of Survey", datetime.date.today())
-            
-            # Radio buttons instead of dropdowns (horizontal for better spacing)
-            data_collector = st.radio("Data Collector", DATA_COLLECTORS, horizontal=True)
-            village = st.radio("Village", VILLAGES, horizontal=True)
-                
-            st.markdown("---")
-            st.subheader("🏠 Logistical Coverage (CSR4)")
-            
-            # House numbers in two columns
-            col_a, col_b = st.columns(2)
-            with col_a:
-                from_house = st.number_input("From House No.", min_value=0, step=1)
-            with col_b:
-                to_house = st.number_input("To House No.", min_value=0, step=1)
-            
-            # Locked houses in two columns
-            col_c, col_d = st.columns(2)
-            with col_c:
-                locked_houses_covered = st.number_input("Locked Houses Covered", min_value=0, step=1)
-            with col_d:
-                new_locked_houses = st.number_input("New Locked Houses", min_value=0, step=1)
-                
-            # Remaining fields are linear (single column)
-            migrated = st.number_input("Migrated Families", min_value=0, step=1)
-                
-            st.markdown("---")
-            st.subheader("⚕️ Health & Demographics (CSR4)")
-            total_forms_submitted = st.number_input("Total Forms Submitted", min_value=0, step=1)
-            individuals_covered = st.number_input("Individuals Covered", min_value=0, step=1)
-            ari_hosp = st.number_input("ARI Hospitalizations", min_value=0, step=1)
-            died = st.number_input("Deaths (Died)", min_value=0, step=1)
-
+            # SECTION 1: Meta Data
             st.markdown("---")
             st.subheader("📋 Annual Survey Status")
             annual_forms_submitted = st.number_input("Total ANNUAL SURVEY Forms Submitted", min_value=0, step=1)
